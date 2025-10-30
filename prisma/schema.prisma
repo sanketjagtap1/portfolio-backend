@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  blogPosts BlogPost[]
+
+  @@map("users")
+}
+
+model Skill {
+  id          Int      @id @default(autoincrement())
+  name        String
+  level       Int      // 1-100 percentage
+  category    String   // frontend, backend, tools, etc.
+  icon        String?
+  description String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("skills")
+}
+
+model Project {
+  id              Int      @id @default(autoincrement())
+  title           String
+  description     String   @db.Text
+  shortDescription String?
+  image           String?
+  featuredImage   String?
+  images          Json     // JSON array of image URLs
+  technologies    Json     // JSON array of technologies
+  githubUrl       String?
+  liveUrl         String?
+  status          String   @default("completed") // completed, in-progress, planned
+  featured        Boolean  @default(false)
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String   @db.Text
+  icon        String?
+  features    Json     // JSON array of features
+  price       String?
+  duration    String?
+  featured    Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("services")
+}
+
+model Experience {
+  id          Int      @id @default(autoincrement())
+  company     String
+  position    String
+  description String   @db.Text
+  startDate   String
+  endDate     String?
+  current     Boolean  @default(false)
+  location    String?
+  technologies Json   // JSON array of technologies
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("experiences")
+}
+
+model ContactInfo {
+  id        Int      @id @default(autoincrement())
+  type      String   // email, phone, location, etc.
+  value     String
+  icon      String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contact_info")
+}
+
+model SocialLink {
+  id        Int      @id @default(autoincrement())
+  platform  String   // github, linkedin, twitter, etc.
+  url       String
+  icon      String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("social_links")
+}
+
+model BlogPost {
+  id          Int      @id @default(autoincrement())
+  title       String
+  slug        String   @unique
+  content     String   @db.Text
+  excerpt     String?
+  featuredImage String?
+  published   Boolean  @default(false)
+  publishedAt DateTime?
+  tags        Json     // JSON array of tags
+  authorId    Int
+  author      User     @relation(fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("blog_posts")
+}
+
+model Testimonial {
+  id        Int      @id @default(autoincrement())
+  name      String
+  position  String?
+  company   String?
+  content   String   @db.Text
+  avatar    String?
+  rating    Int?     // 1-5 stars
+  featured  Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("testimonials")
+}
+
+model Stat {
+  id        Int      @id @default(autoincrement())
+  label     String
+  value     String
+  icon      String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("stats")
+}
