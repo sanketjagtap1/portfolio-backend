@@ -54,8 +54,26 @@ const upload = multer({
 
 // Middleware
 app.use(helmet());
+// CORS with support for multiple origins via env (JSON array or comma-separated)
+const parseCorsOrigins = (raw: string | undefined): string[] => {
+  if (!raw) return ['http://localhost:4200'];
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('[')) {
+    try { return JSON.parse(trimmed); } catch {
+      return ['http://localhost:4200'];
+    }
+  }
+  return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+};
+
+const allowedOrigins = parseCorsOrigins(process.env.CORS_ORIGIN);
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // Allow non-browser or same-origin
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(morgan('combined'));
