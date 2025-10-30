@@ -1,6 +1,6 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticateToken, requireRole } from '../middleware/auth';
@@ -11,7 +11,7 @@ const router = express.Router();
 router.post('/login', [
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
-], async (req, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -33,11 +33,10 @@ router.post('/login', [
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'your-super-secret-jwt-key',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-    );
+    const payload = { userId: user.id, email: user.email, role: user.role };
+    const secret: Secret = (process.env.JWT_SECRET || 'your-super-secret-jwt-key') as Secret;
+    const options: SignOptions = { expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as SignOptions['expiresIn'] };
+    const token = jwt.sign(payload, secret, options);
 
     res.json({
       token,
@@ -55,10 +54,10 @@ router.post('/login', [
 });
 
 // Get current admin profile
-router.get('/profile', authenticateToken, async (req: any, res) => {
+router.get('/profile', authenticateToken, async (req: Request, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: (req as any).user.userId },
       select: {
         id: true,
         email: true,
@@ -83,7 +82,7 @@ router.get('/profile', authenticateToken, async (req: any, res) => {
 router.put('/profile', authenticateToken, [
   body('email').isEmail().withMessage('Valid email is required'),
   body('name').isLength({ min: 2 }).withMessage('Name must be at least 2 characters')
-], async (req: any, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -91,7 +90,7 @@ router.put('/profile', authenticateToken, [
     }
 
     const { name, email } = req.body;
-    const userId = req.user.userId;
+    const userId = (req as any).user.userId;
 
     const user = await prisma.user.update({
       where: { id: userId },
@@ -115,7 +114,7 @@ router.put('/profile', authenticateToken, [
 router.put('/change-password', authenticateToken, [
   body('currentPassword').notEmpty().withMessage('Current password is required'),
   body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
-], async (req: any, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -123,7 +122,7 @@ router.put('/change-password', authenticateToken, [
     }
 
     const { currentPassword, newPassword } = req.body;
-    const userId = req.user.userId;
+    const userId = (req as any).user.userId;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -154,7 +153,7 @@ router.put('/change-password', authenticateToken, [
 });
 
 // Get all users (admin only)
-router.get('/users', authenticateToken, requireRole(['admin']), async (req, res) => {
+router.get('/users', authenticateToken, requireRole(['admin']), async (_req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -180,7 +179,7 @@ router.post('/users', authenticateToken, requireRole(['admin']), [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('name').isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
   body('role').isIn(['admin', 'user']).withMessage('Invalid role')
-], async (req, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -226,11 +225,11 @@ router.post('/users', authenticateToken, requireRole(['admin']), [
 });
 
 // Delete user (admin only)
-router.delete('/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+router.delete('/users/:id', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     
-    if (userId === req.user.userId) {
+    if (userId === (req as any).user.userId) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
@@ -246,7 +245,7 @@ router.delete('/users/:id', authenticateToken, requireRole(['admin']), async (re
 });
 
 // Dashboard stats
-router.get('/stats', authenticateToken, async (req, res) => {
+router.get('/stats', authenticateToken, async (_req: Request, res: Response) => {
   try {
     const [
       totalSkills,

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticateToken } from '../middleware/auth';
@@ -6,7 +6,7 @@ import { authenticateToken } from '../middleware/auth';
 const router = express.Router();
 
 // Get all skills (public)
-router.get('/skills', async (req, res) => {
+router.get('/skills', async (_req: Request, res: Response) => {
   try {
     const skills = await prisma.skill.findMany({
       orderBy: [
@@ -22,7 +22,7 @@ router.get('/skills', async (req, res) => {
 });
 
 // Get all projects (public)
-router.get('/projects', async (req, res) => {
+router.get('/projects', async (_req: Request, res: Response) => {
   try {
     const projects = await prisma.project.findMany({
       orderBy: { createdAt: 'desc' }
@@ -35,7 +35,7 @@ router.get('/projects', async (req, res) => {
 });
 
 // Get single project by ID (public)
-router.get('/projects/:id', async (req, res) => {
+router.get('/projects/:id', async (req: Request, res: Response) => {
   try {
     const projectId = parseInt(req.params.id);
     if (isNaN(projectId)) {
@@ -58,7 +58,7 @@ router.get('/projects/:id', async (req, res) => {
 });
 
 // Get all services (public)
-router.get('/services', async (req, res) => {
+router.get('/services', async (_req: Request, res: Response) => {
   try {
     const services = await prisma.service.findMany({
       orderBy: { order: 'asc' }
@@ -71,7 +71,7 @@ router.get('/services', async (req, res) => {
 });
 
 // Get single service by ID (public)
-router.get('/services/:id', async (req, res) => {
+router.get('/services/:id', async (req: Request, res: Response) => {
   try {
     const serviceId = parseInt(req.params.id);
     
@@ -96,7 +96,7 @@ router.get('/services/:id', async (req, res) => {
 
 // Admin routes for services management
 // Get all services (admin)
-router.get('/admin/services', authenticateToken, async (req, res) => {
+router.get('/admin/services', authenticateToken, async (_req: Request, res: Response) => {
   try {
     const services = await prisma.service.findMany({
       orderBy: { order: 'asc' }
@@ -109,7 +109,7 @@ router.get('/admin/services', authenticateToken, async (req, res) => {
 });
 
 // Create new service (admin)
-router.post('/admin/services', authenticateToken, async (req, res) => {
+router.post('/admin/services', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { title, description, icon, features, price, duration, featured, order } = req.body;
 
@@ -138,7 +138,7 @@ router.post('/admin/services', authenticateToken, async (req, res) => {
 });
 
 // Update service (admin)
-router.put('/admin/services/:id', authenticateToken, async (req, res) => {
+router.put('/admin/services/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const serviceId = parseInt(req.params.id);
     const { title, description, icon, features, price, duration, featured, order } = req.body;
@@ -173,7 +173,7 @@ router.put('/admin/services/:id', authenticateToken, async (req, res) => {
 });
 
 // Delete service (admin)
-router.delete('/admin/services/:id', authenticateToken, async (req, res) => {
+router.delete('/admin/services/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const serviceId = parseInt(req.params.id);
 
@@ -193,7 +193,7 @@ router.delete('/admin/services/:id', authenticateToken, async (req, res) => {
 });
 
 // Get all experiences (public)
-router.get('/experience', async (req, res) => {
+router.get('/experience', async (_req: Request, res: Response) => {
   try {
     const experiences = await prisma.experience.findMany({
       orderBy: { startDate: 'desc' }
@@ -206,7 +206,7 @@ router.get('/experience', async (req, res) => {
 });
 
 // Get contact info (public)
-router.get('/contact', async (req, res) => {
+router.get('/contact', async (_req: Request, res: Response) => {
   try {
     const contactInfo = await prisma.contactInfo.findMany({
       orderBy: { order: 'asc' }
@@ -234,7 +234,7 @@ router.post('/admin/skills', authenticateToken, [
   body('level').isInt({ min: 0, max: 100 }).withMessage('Level must be between 0 and 100'),
   body('category').notEmpty().withMessage('Category is required'),
   body('icon').optional()
-], async (req, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -269,7 +269,7 @@ router.put('/admin/skills/:id', authenticateToken, [
   body('level').optional().isInt({ min: 0, max: 100 }).withMessage('Level must be between 0 and 100'),
   body('category').optional().notEmpty().withMessage('Category cannot be empty'),
   body('icon').optional()
-], async (req, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -298,7 +298,7 @@ router.put('/admin/skills/:id', authenticateToken, [
   }
 });
 
-router.delete('/admin/skills/:id', authenticateToken, async (req, res) => {
+router.delete('/admin/skills/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const skillId = parseInt(req.params.id);
 
@@ -318,7 +318,7 @@ router.post('/admin/projects', authenticateToken, [
   body('title').notEmpty().withMessage('Project title is required'),
   body('description').notEmpty().withMessage('Description is required'),
   body('technologies').optional().isArray().withMessage('Technologies must be an array')
-], async (req, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -354,7 +354,7 @@ router.post('/admin/projects', authenticateToken, [
   }
 });
 
-router.put('/admin/projects/:id', authenticateToken, async (req, res) => {
+router.put('/admin/projects/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const projectId = parseInt(req.params.id);
     const updateData: any = {};
@@ -384,7 +384,7 @@ router.put('/admin/projects/:id', authenticateToken, async (req, res) => {
   }
 });
 
-router.delete('/admin/projects/:id', authenticateToken, async (req, res) => {
+router.delete('/admin/projects/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const projectId = parseInt(req.params.id);
 
@@ -406,7 +406,7 @@ router.post('/admin/experience', authenticateToken, [
   body('description').notEmpty().withMessage('Description is required'),
   body('startDate').notEmpty().withMessage('Start date is required'),
   body('technologies').optional().isArray().withMessage('Technologies must be an array')
-], async (req, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -439,7 +439,7 @@ router.post('/admin/experience', authenticateToken, [
   }
 });
 
-router.put('/admin/experience/:id', authenticateToken, async (req, res) => {
+router.put('/admin/experience/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const experienceId = parseInt(req.params.id);
     const updateData: any = {};
@@ -466,7 +466,7 @@ router.put('/admin/experience/:id', authenticateToken, async (req, res) => {
   }
 });
 
-router.delete('/admin/experience/:id', authenticateToken, async (req, res) => {
+router.delete('/admin/experience/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const experienceId = parseInt(req.params.id);
 
@@ -485,7 +485,7 @@ router.delete('/admin/experience/:id', authenticateToken, async (req, res) => {
 router.post('/admin/contact', authenticateToken, [
   body('type').notEmpty().withMessage('Type is required'),
   body('value').notEmpty().withMessage('Value is required')
-], async (req, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -513,7 +513,7 @@ router.post('/admin/contact', authenticateToken, [
   }
 });
 
-router.put('/admin/contact/:id', authenticateToken, async (req, res) => {
+router.put('/admin/contact/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const contactId = parseInt(req.params.id);
     const updateData: any = {};
@@ -535,7 +535,7 @@ router.put('/admin/contact/:id', authenticateToken, async (req, res) => {
   }
 });
 
-router.delete('/admin/contact/:id', authenticateToken, async (req, res) => {
+router.delete('/admin/contact/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const contactId = parseInt(req.params.id);
 
@@ -554,7 +554,7 @@ router.delete('/admin/contact/:id', authenticateToken, async (req, res) => {
 router.post('/admin/social', authenticateToken, [
   body('platform').notEmpty().withMessage('Platform is required'),
   body('url').isURL().withMessage('Valid URL is required')
-], async (req, res) => {
+], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -582,7 +582,7 @@ router.post('/admin/social', authenticateToken, [
   }
 });
 
-router.put('/admin/social/:id', authenticateToken, async (req, res) => {
+router.put('/admin/social/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const socialId = parseInt(req.params.id);
     const updateData: any = {};
@@ -604,7 +604,7 @@ router.put('/admin/social/:id', authenticateToken, async (req, res) => {
   }
 });
 
-router.delete('/admin/social/:id', authenticateToken, async (req, res) => {
+router.delete('/admin/social/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const socialId = parseInt(req.params.id);
 

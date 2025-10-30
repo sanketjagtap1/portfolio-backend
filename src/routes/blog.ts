@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticateToken } from '../middleware/auth';
@@ -12,11 +12,11 @@ const generateSlug = (title: string): string => {
     .replace(/[^a-z0-9 -]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
-    .trim('-');
+    .replace(/^-+|-+$/g, '');
 };
 
 // Get all blogs (public)
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { page = 1, limit = 10, status = 'published' } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
@@ -62,7 +62,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get blog by slug (public)
-router.get('/slug/:slug', async (req, res) => {
+router.get('/slug/:slug', async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
 
@@ -94,7 +94,7 @@ router.get('/slug/:slug', async (req, res) => {
 });
 
 // Get blog by ID (admin)
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const blogId = parseInt(req.params.id);
 
@@ -129,7 +129,7 @@ router.post('/', authenticateToken, [
   body('excerpt').optional().isLength({ max: 500 }).withMessage('Excerpt must be less than 500 characters'),
   body('published').optional().isBoolean().withMessage('Published must be a boolean'),
   body('tags').optional().isArray().withMessage('Tags must be an array')
-], async (req: any, res) => {
+], async (req: any, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -199,7 +199,7 @@ router.put('/:id', authenticateToken, [
   body('excerpt').optional().isLength({ max: 500 }).withMessage('Excerpt must be less than 500 characters'),
   body('published').optional().isBoolean().withMessage('Published must be a boolean'),
   body('tags').optional().isArray().withMessage('Tags must be an array')
-], async (req: any, res) => {
+], async (req: any, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -273,7 +273,7 @@ router.put('/:id', authenticateToken, [
 });
 
 // Delete blog (admin)
-router.delete('/:id', authenticateToken, async (req: any, res) => {
+router.delete('/:id', authenticateToken, async (req: any, res: Response) => {
   try {
     const blogId = parseInt(req.params.id);
 
