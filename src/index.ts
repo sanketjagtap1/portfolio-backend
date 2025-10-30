@@ -54,25 +54,46 @@ const upload = multer({
 
 // Middleware
 app.use(helmet());
-// CORS with support for multiple origins via env (JSON array or comma-separated)
+// CORS with support for multiple origins via env (JSON array, single-quoted array, or comma-separated)
 const parseCorsOrigins = (raw: string | undefined): string[] => {
   if (!raw) return ['http://localhost:4200'];
   const trimmed = raw.trim();
-  if (trimmed.startsWith('[')) {
-    try { return JSON.parse(trimmed); } catch {
-      return ['http://localhost:4200'];
+  if (trimmed === '*') return ['*'];
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      // Try valid JSON first
+      return JSON.parse(trimmed);
+    } catch {
+      // Fallback for single-quoted arrays like ['a','b']
+      const inner = trimmed.slice(1, -1);
+      return inner
+        .split(',')
+        .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+        .filter(Boolean);
     }
   }
   return trimmed.split(',').map(s => s.trim()).filter(Boolean);
 };
 
-const allowedOrigins = parseCorsOrigins(process.env.CORS_ORIGIN);
+const normalizeOrigin = (o?: string | null) => (o ? o.replace(/\/$/, '').toLowerCase() : '');
+const allowedOrigins = parseCorsOrigins(process.env.CORS_ORIGIN).map(normalizeOrigin);
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // Allow non-browser or same-origin
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Not allowed by CORS'));
+    // Allow non-browser requests and same-origin (Origin may be undefined)
+    if (!origin) return callback(null, true);
+
+    const norm = normalizeOrigin(origin);
+
+    // Allow all if '*' configured
+    if (allowedOrigins.includes('*')) return callback(null, true);
+
+    if (allowedOrigins.includes(norm)) return callback(null, true);
+
+    // Additional leniency: handle trailing slash or protocol case differences
+    if (allowedOrigins.includes(norm.replace(/\/$/, ''))) return callback(null, true);
+
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));
