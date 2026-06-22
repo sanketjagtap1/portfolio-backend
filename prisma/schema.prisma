@@ -48,6 +48,7 @@ model Project {
   technologies    Json     // JSON array of technologies
   githubUrl       String?
   liveUrl         String?
+  downloadUrl     String?  // e.g. an APK download link for mobile app projects
   status          String   @default("completed") // completed, in-progress, planned
   featured        Boolean  @default(false)
   order           Int      @default(0)

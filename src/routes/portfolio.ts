@@ -329,7 +329,7 @@ router.post('/admin/projects', authenticateToken, requireRole(['admin']), [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { title, description, shortDescription, image, featuredImage, images, technologies, githubUrl, liveUrl, status, featured, order } = req.body;
+    const { title, description, shortDescription, image, featuredImage, images, technologies, githubUrl, liveUrl, downloadUrl, status, featured, order } = req.body;
 
     if (images !== undefined && !Array.isArray(images)) {
       return res.status(400).json({ error: 'Images must be an array' });
@@ -347,6 +347,7 @@ router.post('/admin/projects', authenticateToken, requireRole(['admin']), [
         technologies: technologies || [],
         githubUrl,
         liveUrl,
+        downloadUrl,
         status: status || 'completed',
         featured: featured || false,
         order: order || 0
@@ -386,6 +387,7 @@ router.put('/admin/projects/:id', authenticateToken, requireRole(['admin']), asy
     if (req.body.technologies) updateData.technologies = req.body.technologies;
     if (req.body.githubUrl !== undefined) updateData.githubUrl = req.body.githubUrl;
     if (req.body.liveUrl !== undefined) updateData.liveUrl = req.body.liveUrl;
+    if (req.body.downloadUrl !== undefined) updateData.downloadUrl = req.body.downloadUrl;
     if (req.body.status) updateData.status = req.body.status;
     if (req.body.featured !== undefined) updateData.featured = req.body.featured;
     if (req.body.order !== undefined) updateData.order = req.body.order;
