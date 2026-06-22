@@ -152,6 +152,19 @@ model Testimonial {
   @@map("testimonials")
 }
 
+// Single-use invite that authorizes one review submission via a shared link.
+model ReviewInvite {
+  id        Int       @id @default(autoincrement())
+  token     String    @unique
+  label     String?   // who the link was shared with (admin reference)
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("review_invites")
+}
+
 model Stat {
   id        Int      @id @default(autoincrement())
   label     String

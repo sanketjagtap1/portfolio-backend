@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
@@ -677,8 +678,22 @@ router.get('/testimonials', async (req, res) => {
   }
 });
 
-// Submit a review (public, rate-limited). Stored unapproved until an admin approves it.
+// Validate a review invite token (public). The /review page calls this before
+// showing the form, so random visitors without a valid link can't submit.
+router.get('/review-invites/:token', async (req, res) => {
+  try {
+    const invite = await prisma.reviewInvite.findUnique({ where: { token: req.params.token } });
+    const valid = !!invite && !invite.used && (!invite.expiresAt || invite.expiresAt > new Date());
+    res.json({ valid, label: valid ? invite!.label : null });
+  } catch (error) {
+    handleError(res, error, 'Validate review invite error:');
+  }
+});
+
+// Submit a review (public, rate-limited). REQUIRES a valid, single-use invite
+// token from a shared link. Stored unapproved until an admin approves it.
 router.post('/testimonials', reviewSubmitLimiter, [
+  body('token').notEmpty().withMessage('A valid review link is required'),
   body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name is required (2-100 characters)'),
   body('content').trim().isLength({ min: 10, max: 1000 }).withMessage('Review must be 10-1000 characters'),
   body('position').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
@@ -692,7 +707,17 @@ router.post('/testimonials', reviewSubmitLimiter, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, content, position, company, email, rating } = req.body;
+    const { token, name, content, position, company, email, rating } = req.body;
+
+    // Atomically consume the invite — guards against reuse / double submission.
+    const consumed = await prisma.reviewInvite.updateMany({
+      where: { token, used: false, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      data: { used: true, usedAt: new Date() }
+    });
+
+    if (consumed.count === 0) {
+      return res.status(403).json({ error: 'This review link is invalid, already used, or expired.' });
+    }
 
     await prisma.testimonial.create({
       data: {
@@ -761,6 +786,55 @@ router.delete('/admin/testimonials/:id', authenticateToken, requireRole(['admin'
     res.json({ message: 'Testimonial deleted successfully' });
   } catch (error) {
     handleError(res, error, 'Delete testimonial error:');
+  }
+});
+
+// ----------------------------------------------------------------------------
+// Review invites (admin) — generate single-use links to collect reviews
+// ----------------------------------------------------------------------------
+
+// Create a review invite; returns the token to build a shareable link.
+router.post('/admin/review-invites', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { label, expiresInDays } = req.body;
+    const token = crypto.randomBytes(16).toString('hex');
+
+    let expiresAt: Date | null = null;
+    if (expiresInDays && Number(expiresInDays) > 0) {
+      expiresAt = new Date(Date.now() + Number(expiresInDays) * 24 * 60 * 60 * 1000);
+    }
+
+    const invite = await prisma.reviewInvite.create({
+      data: { token, label: label || null, expiresAt }
+    });
+
+    res.status(201).json({ message: 'Review link created', invite });
+  } catch (error) {
+    handleError(res, error, 'Create review invite error:');
+  }
+});
+
+// List review invites (admin)
+router.get('/admin/review-invites', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const invites = await prisma.reviewInvite.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json(invites);
+  } catch (error) {
+    handleError(res, error, 'Get review invites error:');
+  }
+});
+
+// Revoke a review invite (admin)
+router.delete('/admin/review-invites/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid ID' });
+    }
+    await prisma.reviewInvite.delete({ where: { id } });
+    res.json({ message: 'Review link revoked' });
+  } catch (error) {
+    handleError(res, error, 'Delete review invite error:');
   }
 });
 
