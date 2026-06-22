@@ -33,6 +33,29 @@ router.get('/projects', async (req, res) => {
   }
 });
 
+// Get single project by ID (public) — used by the project details page.
+router.get('/projects/:id', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id: projectId }
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json(project);
+  } catch (error) {
+    handleError(res, error, 'Get project error:');
+  }
+});
+
 // Get all services (public)
 router.get('/services', async (req, res) => {
   try {
