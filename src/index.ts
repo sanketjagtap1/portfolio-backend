@@ -146,6 +146,45 @@ app.get('/health/ready', async (req, res) => {
   }
 });
 
+// Dynamic sitemap — always reflects current projects and published blog posts.
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const base = process.env.SITE_URL || 'https://sanket-jagtap.in';
+    const staticPaths = [
+      { loc: '/', priority: '1.0', changefreq: 'weekly' },
+      { loc: '/skills', priority: '0.7', changefreq: 'monthly' },
+      { loc: '/experience', priority: '0.7', changefreq: 'monthly' },
+      { loc: '/projects', priority: '0.8', changefreq: 'weekly' },
+      { loc: '/services', priority: '0.6', changefreq: 'monthly' },
+      { loc: '/blog', priority: '0.7', changefreq: 'weekly' },
+      { loc: '/contact', priority: '0.5', changefreq: 'yearly' }
+    ];
+
+    const [projects, blogs] = await Promise.all([
+      prisma.project.findMany({ select: { id: true, updatedAt: true } }),
+      prisma.blogPost.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } })
+    ]);
+
+    const urls: string[] = [];
+    for (const p of staticPaths) {
+      urls.push(`  <url><loc>${base}${p.loc}</loc><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`);
+    }
+    for (const pr of projects) {
+      urls.push(`  <url><loc>${base}/projects/${pr.id}</loc><lastmod>${pr.updatedAt.toISOString()}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`);
+    }
+    for (const b of blogs) {
+      urls.push(`  <url><loc>${base}/blog/${b.slug}</loc><lastmod>${b.updatedAt.toISOString()}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>`);
+    }
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+    res.header('Content-Type', 'application/xml');
+    res.send(xml);
+  } catch (error) {
+    console.error('Sitemap error:', error);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
