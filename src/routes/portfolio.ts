@@ -227,6 +227,81 @@ router.get('/contact', async (req, res) => {
   }
 });
 
+// Limiter for the public contact form (anti-spam).
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many messages. Please try again later.' }
+});
+
+// Submit a contact message / lead (public, rate-limited)
+router.post('/contact', contactLimiter, [
+  body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name is required (2-100 characters)'),
+  body('email').trim().isEmail().withMessage('A valid email is required'),
+  body('subject').optional({ values: 'falsy' }).trim().isLength({ max: 150 }),
+  body('message').trim().isLength({ min: 10, max: 2000 }).withMessage('Message must be 10-2000 characters')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { name, email, subject, message } = req.body;
+    await prisma.contactMessage.create({
+      data: { name, email, subject: subject || null, message }
+    });
+
+    res.status(201).json({ message: "Thanks for reaching out! I'll get back to you soon." });
+  } catch (error) {
+    handleError(res, error, 'Submit contact message error:');
+  }
+});
+
+// List contact messages / leads (admin)
+router.get('/admin/messages', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const messages = await prisma.contactMessage.findMany({ orderBy: { createdAt: 'desc' } });
+    const unread = messages.filter(m => !m.read).length;
+    res.json({ messages, unread });
+  } catch (error) {
+    handleError(res, error, 'Get messages error:');
+  }
+});
+
+// Mark a message read/unread (admin)
+router.put('/admin/messages/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid ID' });
+    }
+    const message = await prisma.contactMessage.update({
+      where: { id },
+      data: { read: req.body.read !== undefined ? req.body.read : true }
+    });
+    res.json({ message: 'Updated', data: message });
+  } catch (error) {
+    handleError(res, error, 'Update message error:');
+  }
+});
+
+// Delete a message (admin)
+router.delete('/admin/messages/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid ID' });
+    }
+    await prisma.contactMessage.delete({ where: { id } });
+    res.json({ message: 'Message deleted' });
+  } catch (error) {
+    handleError(res, error, 'Delete message error:');
+  }
+});
+
 // Admin routes for managing portfolio data
 
 // Skills management

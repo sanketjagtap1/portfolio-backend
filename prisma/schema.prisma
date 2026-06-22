@@ -153,6 +153,19 @@ model Testimonial {
   @@map("testimonials")
 }
 
+// Lead captured from the public contact form.
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  subject   String?
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
+}
+
 // Single-use invite that authorizes one review submission via a shared link.
 model ReviewInvite {
   id        Int       @id @default(autoincrement())
