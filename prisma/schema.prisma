@@ -141,6 +141,9 @@ model Testimonial {
   content   String   @db.Text
   avatar    String?
   rating    Int?     // 1-5 stars
+  email     String?  // submitter's email (not shown publicly)
+  // Public submissions start unapproved; only approved ones are shown on the site.
+  approved  Boolean  @default(false)
   featured  Boolean  @default(false)
   order     Int      @default(0)
   createdAt DateTime @default(now())

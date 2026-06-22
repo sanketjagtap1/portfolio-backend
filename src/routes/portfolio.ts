@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticateToken, requireRole } from '../middleware/auth';
@@ -642,6 +643,124 @@ router.delete('/admin/social/:id', authenticateToken, requireRole(['admin']), as
     res.json({ message: 'Social link deleted successfully' });
   } catch (error) {
     handleError(res, error, 'Delete social link error:');
+  }
+});
+
+// ----------------------------------------------------------------------------
+// Testimonials / Reviews
+// ----------------------------------------------------------------------------
+
+// Strict limiter for public review submissions (anti-spam).
+const reviewSubmitLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many review submissions. Please try again later.' }
+});
+
+// Get approved testimonials (public)
+router.get('/testimonials', async (req, res) => {
+  try {
+    const testimonials = await prisma.testimonial.findMany({
+      where: { approved: true },
+      orderBy: [{ featured: 'desc' }, { order: 'asc' }, { createdAt: 'desc' }],
+      select: {
+        id: true, name: true, position: true, company: true,
+        content: true, avatar: true, rating: true, featured: true, createdAt: true
+        // email is intentionally omitted from the public payload
+      }
+    });
+    res.json(testimonials);
+  } catch (error) {
+    handleError(res, error, 'Get testimonials error:');
+  }
+});
+
+// Submit a review (public, rate-limited). Stored unapproved until an admin approves it.
+router.post('/testimonials', reviewSubmitLimiter, [
+  body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name is required (2-100 characters)'),
+  body('content').trim().isLength({ min: 10, max: 1000 }).withMessage('Review must be 10-1000 characters'),
+  body('position').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
+  body('company').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
+  body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email'),
+  body('rating').optional({ values: 'null' }).isInt({ min: 1, max: 5 }).withMessage('Rating must be 1-5')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { name, content, position, company, email, rating } = req.body;
+
+    await prisma.testimonial.create({
+      data: {
+        name,
+        content,
+        position: position || null,
+        company: company || null,
+        email: email || null,
+        rating: rating ? Number(rating) : null,
+        approved: false,
+        featured: false
+      }
+    });
+
+    res.status(201).json({ message: 'Thank you! Your review has been submitted and will appear once approved.' });
+  } catch (error) {
+    handleError(res, error, 'Submit testimonial error:');
+  }
+});
+
+// Get all testimonials incl. pending (admin)
+router.get('/admin/testimonials', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const testimonials = await prisma.testimonial.findMany({
+      orderBy: [{ approved: 'asc' }, { createdAt: 'desc' }]
+    });
+    res.json(testimonials);
+  } catch (error) {
+    handleError(res, error, 'Get admin testimonials error:');
+  }
+});
+
+// Update a testimonial — approve / feature / edit (admin)
+router.put('/admin/testimonials/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid ID' });
+    }
+
+    const updateData: any = {};
+    if (req.body.name !== undefined) updateData.name = req.body.name;
+    if (req.body.content !== undefined) updateData.content = req.body.content;
+    if (req.body.position !== undefined) updateData.position = req.body.position;
+    if (req.body.company !== undefined) updateData.company = req.body.company;
+    if (req.body.rating !== undefined) updateData.rating = req.body.rating;
+    if (req.body.approved !== undefined) updateData.approved = req.body.approved;
+    if (req.body.featured !== undefined) updateData.featured = req.body.featured;
+    if (req.body.order !== undefined) updateData.order = req.body.order;
+
+    const testimonial = await prisma.testimonial.update({ where: { id }, data: updateData });
+    res.json({ message: 'Testimonial updated', testimonial });
+  } catch (error) {
+    handleError(res, error, 'Update testimonial error:');
+  }
+});
+
+// Delete a testimonial (admin)
+router.delete('/admin/testimonials/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid ID' });
+    }
+    await prisma.testimonial.delete({ where: { id } });
+    res.json({ message: 'Testimonial deleted successfully' });
+  } catch (error) {
+    handleError(res, error, 'Delete testimonial error:');
   }
 });
 
