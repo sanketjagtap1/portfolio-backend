@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticateToken, requireRole, JWT_SECRET } from '../middleware/auth';
+import { handleError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -60,8 +61,7 @@ router.post('/login', loginLimiter, [
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Login error:');
   }
 });
 
@@ -85,8 +85,7 @@ router.get('/profile', authenticateToken, async (req: any, res) => {
 
     res.json({ user });
   } catch (error) {
-    console.error('Profile error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Profile error:');
   }
 });
 
@@ -117,8 +116,7 @@ router.put('/profile', authenticateToken, [
 
     res.json({ message: 'Profile updated successfully', user });
   } catch (error) {
-    console.error('Profile update error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Profile update error:');
   }
 });
 
@@ -159,8 +157,7 @@ router.put('/change-password', authenticateToken, [
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Password change error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Password change error:');
   }
 });
 
@@ -180,8 +177,7 @@ router.get('/users', authenticateToken, requireRole(['admin']), async (req, res)
 
     res.json({ users });
   } catch (error) {
-    console.error('Get users error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get users error:');
   }
 });
 
@@ -231,8 +227,7 @@ router.post('/users', authenticateToken, requireRole(['admin']), [
       user
     });
   } catch (error) {
-    console.error('Create user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Create user error:');
   }
 });
 
@@ -255,8 +250,7 @@ router.delete('/users/:id', authenticateToken, requireRole(['admin']), async (re
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Delete user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Delete user error:');
   }
 });
 
@@ -291,8 +285,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get stats error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get stats error:');
   }
 });
 

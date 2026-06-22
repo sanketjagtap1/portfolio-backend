@@ -27,4 +27,7 @@ RUN mkdir -p /app/uploads && chown -R node:node /app
 USER node
 
 EXPOSE 3000
-CMD ["node", "dist/index.js"]
+
+# Apply pending database migrations before starting the server. `migrate deploy`
+# only runs already-generated migrations (never prompts, never resets) — safe for prod.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

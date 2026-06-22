@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticateToken, requireRole } from '../middleware/auth';
+import { handleError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -16,8 +17,7 @@ router.get('/skills', async (req, res) => {
     });
     res.json(skills);
   } catch (error) {
-    console.error('Get skills error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get skills error:');
   }
 });
 
@@ -29,8 +29,7 @@ router.get('/projects', async (req, res) => {
     });
     res.json(projects);
   } catch (error) {
-    console.error('Get projects error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get projects error:');
   }
 });
 
@@ -42,8 +41,7 @@ router.get('/services', async (req, res) => {
     });
     res.json(services);
   } catch (error) {
-    console.error('Get services error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get services error:');
   }
 });
 
@@ -66,8 +64,7 @@ router.get('/services/:id', async (req, res) => {
 
     res.json(service);
   } catch (error) {
-    console.error('Get service error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get service error:');
   }
 });
 
@@ -80,8 +77,7 @@ router.get('/admin/services', authenticateToken, requireRole(['admin']), async (
     });
     res.json(services);
   } catch (error) {
-    console.error('Get admin services error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get admin services error:');
   }
 });
 
@@ -92,6 +88,10 @@ router.post('/admin/services', authenticateToken, requireRole(['admin']), async 
 
     if (!title || !description) {
       return res.status(400).json({ error: 'Title and description are required' });
+    }
+
+    if (features !== undefined && !Array.isArray(features)) {
+      return res.status(400).json({ error: 'Features must be an array' });
     }
 
     const service = await prisma.service.create({
@@ -109,8 +109,7 @@ router.post('/admin/services', authenticateToken, requireRole(['admin']), async 
 
     res.status(201).json(service);
   } catch (error) {
-    console.error('Create service error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Create service error:');
   }
 });
 
@@ -126,6 +125,10 @@ router.put('/admin/services/:id', authenticateToken, requireRole(['admin']), asy
 
     if (!title || !description) {
       return res.status(400).json({ error: 'Title and description are required' });
+    }
+
+    if (features !== undefined && !Array.isArray(features)) {
+      return res.status(400).json({ error: 'Features must be an array' });
     }
 
     const service = await prisma.service.update({
@@ -144,8 +147,7 @@ router.put('/admin/services/:id', authenticateToken, requireRole(['admin']), asy
 
     res.json(service);
   } catch (error) {
-    console.error('Update service error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Update service error:');
   }
 });
 
@@ -164,8 +166,7 @@ router.delete('/admin/services/:id', authenticateToken, requireRole(['admin']), 
 
     res.json({ message: 'Service deleted successfully' });
   } catch (error) {
-    console.error('Delete service error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Delete service error:');
   }
 });
 
@@ -177,8 +178,7 @@ router.get('/experience', async (req, res) => {
     });
     res.json(experiences);
   } catch (error) {
-    console.error('Get experience error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get experience error:');
   }
 });
 
@@ -198,8 +198,7 @@ router.get('/contact', async (req, res) => {
       socialLinks
     });
   } catch (error) {
-    console.error('Get contact info error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get contact info error:');
   }
 });
 
@@ -236,8 +235,7 @@ router.post('/admin/skills', authenticateToken, requireRole(['admin']), [
       skill
     });
   } catch (error) {
-    console.error('Create skill error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Create skill error:');
   }
 });
 
@@ -273,8 +271,7 @@ router.put('/admin/skills/:id', authenticateToken, requireRole(['admin']), [
 
     res.json({ message: 'Skill updated successfully', skill });
   } catch (error) {
-    console.error('Update skill error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Update skill error:');
   }
 });
 
@@ -291,8 +288,7 @@ router.delete('/admin/skills/:id', authenticateToken, requireRole(['admin']), as
 
     res.json({ message: 'Skill deleted successfully' });
   } catch (error) {
-    console.error('Delete skill error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Delete skill error:');
   }
 });
 
@@ -310,6 +306,10 @@ router.post('/admin/projects', authenticateToken, requireRole(['admin']), [
 
     const { title, description, shortDescription, image, featuredImage, images, technologies, githubUrl, liveUrl, status, featured, order } = req.body;
 
+    if (images !== undefined && !Array.isArray(images)) {
+      return res.status(400).json({ error: 'Images must be an array' });
+    }
+
     const project = await prisma.project.create({
       data: {
         title,
@@ -317,7 +317,8 @@ router.post('/admin/projects', authenticateToken, requireRole(['admin']), [
         shortDescription,
         image,
         featuredImage,
-        images,
+        // `images` is a required Json column — default to an empty array when omitted.
+        images: images || [],
         technologies: technologies || [],
         githubUrl,
         liveUrl,
@@ -332,8 +333,7 @@ router.post('/admin/projects', authenticateToken, requireRole(['admin']), [
       project
     });
   } catch (error) {
-    console.error('Create project error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Create project error:');
   }
 });
 
@@ -343,6 +343,13 @@ router.put('/admin/projects/:id', authenticateToken, requireRole(['admin']), asy
     if (isNaN(projectId)) {
       return res.status(400).json({ error: 'Invalid ID' });
     }
+    if (req.body.images !== undefined && !Array.isArray(req.body.images)) {
+      return res.status(400).json({ error: 'Images must be an array' });
+    }
+    if (req.body.technologies !== undefined && !Array.isArray(req.body.technologies)) {
+      return res.status(400).json({ error: 'Technologies must be an array' });
+    }
+
     const updateData: any = {};
 
     if (req.body.title) updateData.title = req.body.title;
@@ -365,8 +372,7 @@ router.put('/admin/projects/:id', authenticateToken, requireRole(['admin']), asy
 
     res.json({ message: 'Project updated successfully', project });
   } catch (error) {
-    console.error('Update project error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Update project error:');
   }
 });
 
@@ -383,8 +389,7 @@ router.delete('/admin/projects/:id', authenticateToken, requireRole(['admin']), 
 
     res.json({ message: 'Project deleted successfully' });
   } catch (error) {
-    console.error('Delete project error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Delete project error:');
   }
 });
 
@@ -423,8 +428,7 @@ router.post('/admin/experience', authenticateToken, requireRole(['admin']), [
       experience
     });
   } catch (error) {
-    console.error('Create experience error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Create experience error:');
   }
 });
 
@@ -453,8 +457,7 @@ router.put('/admin/experience/:id', authenticateToken, requireRole(['admin']), a
 
     res.json({ message: 'Experience updated successfully', experience });
   } catch (error) {
-    console.error('Update experience error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Update experience error:');
   }
 });
 
@@ -471,8 +474,7 @@ router.delete('/admin/experience/:id', authenticateToken, requireRole(['admin'])
 
     res.json({ message: 'Experience deleted successfully' });
   } catch (error) {
-    console.error('Delete experience error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Delete experience error:');
   }
 });
 
@@ -503,8 +505,7 @@ router.post('/admin/contact', authenticateToken, requireRole(['admin']), [
       contactInfo
     });
   } catch (error) {
-    console.error('Create contact info error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Create contact info error:');
   }
 });
 
@@ -528,8 +529,7 @@ router.put('/admin/contact/:id', authenticateToken, requireRole(['admin']), asyn
 
     res.json({ message: 'Contact info updated successfully', contactInfo });
   } catch (error) {
-    console.error('Update contact info error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Update contact info error:');
   }
 });
 
@@ -546,8 +546,7 @@ router.delete('/admin/contact/:id', authenticateToken, requireRole(['admin']), a
 
     res.json({ message: 'Contact info deleted successfully' });
   } catch (error) {
-    console.error('Delete contact info error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Delete contact info error:');
   }
 });
 
@@ -578,8 +577,7 @@ router.post('/admin/social', authenticateToken, requireRole(['admin']), [
       socialLink
     });
   } catch (error) {
-    console.error('Create social link error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Create social link error:');
   }
 });
 
@@ -603,8 +601,7 @@ router.put('/admin/social/:id', authenticateToken, requireRole(['admin']), async
 
     res.json({ message: 'Social link updated successfully', socialLink });
   } catch (error) {
-    console.error('Update social link error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Update social link error:');
   }
 });
 
@@ -621,8 +618,7 @@ router.delete('/admin/social/:id', authenticateToken, requireRole(['admin']), as
 
     res.json({ message: 'Social link deleted successfully' });
   } catch (error) {
-    console.error('Delete social link error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Delete social link error:');
   }
 });
 

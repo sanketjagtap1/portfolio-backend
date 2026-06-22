@@ -8,10 +8,11 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { Prisma } from '@prisma/client';
 import portfolioRoutes from './routes/portfolio';
 import adminRoutes from './routes/admin';
 import blogRoutes from './routes/blog';
-import { testConnection, initializeDatabase } from './config/database';
+import prisma, { testConnection, initializeDatabase } from './config/database';
 import { authenticateToken, requireRole } from './middleware/auth';
 
 // Load environment variables from .env file
@@ -128,21 +129,45 @@ app.post('/api/upload', authenticateToken, requireRole(['admin']), upload.single
   }
 });
 
-// Health check
+// Liveness check — is the process up? (cheap, no dependencies)
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Readiness check — can we actually serve traffic? Verifies the DB is reachable.
+// Use this for load-balancer / orchestrator readiness probes.
+app.get('/health/ready', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ready', timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('Readiness check failed:', error);
+    res.status(503).json({ status: 'unavailable', error: 'Database not reachable' });
+  }
 });
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
-  
+
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'File too large' });
     }
+    return res.status(400).json({ error: 'File upload error' });
   }
-  
+
+  // Rejected by multer's fileFilter (e.g. non-image upload).
+  if (err && err.message === 'Only image files are allowed!') {
+    return res.status(400).json({ error: err.message });
+  }
+
+  // Safety net for any Prisma error that wasn't handled at the route level.
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'A record with this value already exists' });
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Record not found' });
+  }
+
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
@@ -156,14 +181,33 @@ const startServer = async () => {
   try {
     await testConnection();
     await initializeDatabase();
-    
-    app.listen(PORT, () => {
+
+    const server = app.listen(PORT, () => {
       console.log(`🚀 Portfolio backend server running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
       console.log(`🔐 Admin API: http://localhost:${PORT}/api/admin`);
       console.log(`📝 Blog API: http://localhost:${PORT}/api/blog`);
       console.log(`💼 Portfolio API: http://localhost:${PORT}/api/portfolio`);
     });
+
+    // Graceful shutdown: stop accepting connections, then close the DB pool.
+    // Without this, redeploys can drop in-flight requests and leak DB connections.
+    const shutdown = async (signal: string) => {
+      console.log(`\n${signal} received — shutting down gracefully...`);
+      server.close(async () => {
+        await prisma.$disconnect();
+        console.log('✅ Server closed and database disconnected.');
+        process.exit(0);
+      });
+      // Force-exit if connections don't drain in time.
+      setTimeout(() => {
+        console.error('⏱️  Forced shutdown after timeout.');
+        process.exit(1);
+      }, 10000).unref();
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

@@ -2,19 +2,10 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { handleError } from '../utils/errors';
+import { generateSlug } from '../utils/slug';
 
 const router = express.Router();
-
-// Helper function to generate slug
-const generateSlug = (title: string): string => {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9 -]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, ''); // strip leading/trailing hyphens (String.trim('-') is a no-op)
-};
 
 // Get all blogs (public)
 router.get('/', async (req, res) => {
@@ -60,8 +51,7 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get blogs error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get blogs error:');
   }
 });
 
@@ -92,8 +82,7 @@ router.get('/slug/:slug', async (req, res) => {
 
     res.json({ blog });
   } catch (error) {
-    console.error('Get blog by slug error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get blog by slug error:');
   }
 });
 
@@ -125,8 +114,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     res.json({ blog });
   } catch (error) {
-    console.error('Get blog by ID error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Get blog by ID error:');
   }
 });
 
@@ -156,15 +144,6 @@ router.post('/', authenticateToken, [
       return res.status(400).json({ error: 'A blog with this title already exists' });
     }
 
-    // Get the first admin user as author (for now)
-    const author = await prisma.user.findFirst({
-      where: { role: 'admin' }
-    });
-
-    if (!author) {
-      return res.status(500).json({ error: 'No admin user found' });
-    }
-
     const publishedAt = published ? new Date() : null;
 
     const blog = await prisma.blogPost.create({
@@ -177,7 +156,8 @@ router.post('/', authenticateToken, [
         published,
         publishedAt,
         tags,
-        authorId: author.id
+        // Attribute the post to the authenticated user, not an arbitrary admin.
+        authorId: req.user.userId
       },
       include: {
         author: {
@@ -195,8 +175,7 @@ router.post('/', authenticateToken, [
       blog
     });
   } catch (error) {
-    console.error('Create blog error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Create blog error:');
   }
 });
 
@@ -280,8 +259,7 @@ router.put('/:id', authenticateToken, [
 
     res.json({ message: 'Blog updated successfully', blog });
   } catch (error) {
-    console.error('Update blog error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Update blog error:');
   }
 });
 
@@ -300,8 +278,7 @@ router.delete('/:id', authenticateToken, async (req: any, res) => {
 
     res.json({ message: 'Blog deleted successfully' });
   } catch (error) {
-    console.error('Delete blog error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Delete blog error:');
   }
 });
 
