@@ -55,6 +55,59 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Public RSS 2.0 feed — enables syndication (dev.to / Medium / Hashnode all
+// support "import from RSS", which republishes each post with a canonical link
+// back here) plus feed readers and aggregators. Full article HTML ships in
+// <content:encoded>. Registered before "/:id" so that route doesn't capture it.
+router.get('/rss', async (_req, res) => {
+  try {
+    const SITE = 'https://sanket-jagtap.in';
+    const posts = await prisma.blogPost.findMany({
+      where: { published: true },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 30,
+    });
+
+    const esc = (s: unknown) => String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    const cdata = (s: unknown) => `<![CDATA[${String(s ?? '').replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
+
+    const items = posts.map((p: any) => {
+      const url = `${SITE}/blog/${p.slug}`;
+      const date = p.publishedAt || p.createdAt;
+      const tags: string[] = Array.isArray(p.tags) ? p.tags : [];
+      return `    <item>
+      <title>${esc(p.title)}</title>
+      <link>${url}</link>
+      <guid isPermaLink="true">${url}</guid>
+      <pubDate>${new Date(date).toUTCString()}</pubDate>
+      <description>${esc(p.excerpt || '')}</description>
+      <content:encoded>${cdata(p.content || '')}</content:encoded>
+${tags.map((t) => `      <category>${esc(t)}</category>`).join('\n')}
+    </item>`;
+    }).join('\n');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Sanket Jagtap — Blog</title>
+    <link>${SITE}/blog</link>
+    <atom:link href="${SITE}/rss.xml" rel="self" type="application/rss+xml"/>
+    <description>Articles on full-stack web &amp; mobile development — Angular, Node.js, Flutter and more, by Sanket Jagtap.</description>
+    <language>en</language>
+    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
+${items}
+  </channel>
+</rss>`;
+
+    res.set('Content-Type', 'application/rss+xml; charset=utf-8');
+    res.send(xml);
+  } catch (error) {
+    handleError(res, error, 'RSS feed error:');
+  }
+});
+
 // Get blog by slug (public)
 router.get('/slug/:slug', async (req, res) => {
   try {

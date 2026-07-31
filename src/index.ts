@@ -72,8 +72,18 @@ const upload = multer({
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
+// Allowed CORS origins. CORS_ORIGIN may be a comma-separated list or a
+// bracketed/quoted array-like string (e.g. ['http://localhost:4200', 'https://x']).
+// We normalise either form into a clean array so `cors` echoes back the single
+// matching request origin (a bare list string is not a valid Access-Control-Allow-Origin).
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:4200')
+  .replace(/[\[\]'"]/g, '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+  origin: allowedOrigins,
   credentials: true
 }));
 app.use(compression());

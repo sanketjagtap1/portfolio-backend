@@ -5,6 +5,7 @@ import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { handleError } from '../utils/errors';
+import { sendLeadNotification } from '../utils/mailer';
 
 const router = express.Router();
 
@@ -253,6 +254,10 @@ router.post('/contact', contactLimiter, [
     await prisma.contactMessage.create({
       data: { name, email, subject: subject || null, message }
     });
+
+    // Notify by email so leads aren't missed. Fire-and-forget: the lead is already
+    // saved, so a mail failure must never break the request or lose the lead.
+    sendLeadNotification({ name, email, subject, message }).catch(() => {});
 
     res.status(201).json({ message: "Thanks for reaching out! I'll get back to you soon." });
   } catch (error) {
@@ -760,14 +765,16 @@ router.get('/testimonials', async (req, res) => {
 router.get('/review-invites/:token', async (req, res) => {
   try {
     const invite = await prisma.reviewInvite.findUnique({ where: { token: req.params.token } });
-    const valid = !!invite && !invite.used && (!invite.expiresAt || invite.expiresAt > new Date());
+    // Reusable links: a link stays valid as long as it exists and hasn't expired
+    // (the `used` flag is no longer a gate — one link can collect many reviews).
+    const valid = !!invite && (!invite.expiresAt || invite.expiresAt > new Date());
     res.json({ valid, label: valid ? invite!.label : null });
   } catch (error) {
     handleError(res, error, 'Validate review invite error:');
   }
 });
 
-// Submit a review (public, rate-limited). REQUIRES a valid, single-use invite
+// Submit a review (public, rate-limited). REQUIRES a valid (reusable) invite
 // token from a shared link. Stored unapproved until an admin approves it.
 router.post('/testimonials', reviewSubmitLimiter, [
   body('token').notEmpty().withMessage('A valid review link is required'),
@@ -786,14 +793,16 @@ router.post('/testimonials', reviewSubmitLimiter, [
 
     const { token, name, content, position, company, email, rating } = req.body;
 
-    // Atomically consume the invite — guards against reuse / double submission.
-    const consumed = await prisma.reviewInvite.updateMany({
-      where: { token, used: false, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
-      data: { used: true, usedAt: new Date() }
+    // Reusable link: verify the invite exists and hasn't expired, but do NOT
+    // consume it — the same shared link can collect reviews from many people
+    // over time. We just record the most recent use for reference.
+    const accepted = await prisma.reviewInvite.updateMany({
+      where: { token, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      data: { usedAt: new Date() }
     });
 
-    if (consumed.count === 0) {
-      return res.status(403).json({ error: 'This review link is invalid, already used, or expired.' });
+    if (accepted.count === 0) {
+      return res.status(403).json({ error: 'This review link is invalid or has expired.' });
     }
 
     await prisma.testimonial.create({
